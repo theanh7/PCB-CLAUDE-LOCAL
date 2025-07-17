@@ -222,4 +222,4 @@ test_results/
 # Local development files
 local_*
 dev_*
-debug_*
+debug_*".claude/settings.local.json" 

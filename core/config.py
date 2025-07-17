@@ -23,7 +23,7 @@ CAMERA_CONFIG: Dict[str, Any] = {
 
 # AI Model Configuration
 AI_CONFIG: Dict[str, Any] = {
-    "model_path": "weights/yolov11_pcb_defects.pt",
+    "model_path": "weights/best.pt",  # YOLOv11 model trained on PCB defects
     "confidence": 0.5,           # Confidence threshold for detections
     "device": "cuda:0",          # GPU device (Tesla P4)
     "imgsz": 640,               # Input image size for model
@@ -31,6 +31,10 @@ AI_CONFIG: Dict[str, Any] = {
     "agnostic_nms": False,      # Class-agnostic NMS
     "augment": False,           # Test-time augmentation
     "half": True,               # Use FP16 for faster inference
+    "warmup": True,             # Warmup model for consistent performance
+    "save_crops": False,        # Don't save detection crops
+    "save_txt": False,          # Don't save detection labels
+    "save_conf": True,          # Save confidence scores
 }
 
 # Auto-Trigger Configuration
@@ -105,9 +109,13 @@ PERFORMANCE_CONFIG: Dict[str, Any] = {
     "cpu_count": None,          # CPU cores to use (None = auto)
     "enable_profiling": False,  # Enable performance profiling
     "benchmark_mode": False,    # Enable benchmarking mode
+    "gpu_optimization": True,   # Enable GPU-specific optimizations
+    "batch_size": 4,           # Batch size for multi-image processing
+    "fp16_inference": True,    # Use FP16 for faster inference
+    "memory_cleanup": True,    # Enable automatic memory cleanup
 }
 
-# PCB Defect Classes
+# PCB Defect Classes (Display Names)
 DEFECT_CLASSES: List[str] = [
     "Missing Hole",
     "Mouse Bite",
@@ -116,6 +124,16 @@ DEFECT_CLASSES: List[str] = [
     "Spur",
     "Spurious Copper"
 ]
+
+# Model Class Mapping (from data.yaml to display names)
+MODEL_CLASS_MAPPING: Dict[int, str] = {
+    0: "Mouse Bite",        # mouse_bite -> Mouse Bite
+    1: "Spur",             # spur -> Spur
+    2: "Missing Hole",     # missing_hole -> Missing Hole
+    3: "Short Circuit",    # short -> Short Circuit
+    4: "Open Circuit",     # open_circuit -> Open Circuit
+    5: "Spurious Copper"   # spurious_copper -> Spurious Copper
+}
 
 # Defect Color Mapping for visualization
 DEFECT_COLORS: Dict[str, tuple] = {
