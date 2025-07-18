@@ -19,7 +19,8 @@ from pathlib import Path
 from .config import LOG_CONFIG, PATHS
 
 
-def setup_logging(log_level: str = LOG_CONFIG["level"], 
+def setup_logging(name: str = None, 
+                 log_level: str = LOG_CONFIG["level"], 
                  log_file: str = LOG_CONFIG["file"]) -> logging.Logger:
     """
     Setup logging configuration for the application.
@@ -35,8 +36,8 @@ def setup_logging(log_level: str = LOG_CONFIG["level"],
     log_dir = os.path.dirname(log_file)
     os.makedirs(log_dir, exist_ok=True)
     
-    # Configure root logger
-    logger = logging.getLogger()
+    # Configure logger (specific or root)
+    logger = logging.getLogger(name) if name else logging.getLogger()
     logger.setLevel(getattr(logging, log_level.upper()))
     
     # Remove existing handlers
@@ -424,5 +425,36 @@ def get_system_info() -> Dict[str, Any]:
     return info
 
 
-# Initialize logging on module import
-logger = setup_logging()
+# Module logger
+logger = logging.getLogger(__name__)
+
+
+class TimestampUtil:
+    """Utility class for timestamp operations."""
+    
+    @staticmethod
+    def get_current() -> str:
+        """Get current timestamp."""
+        return get_timestamp()
+    
+    @staticmethod
+    def get_filename_safe() -> str:
+        """Get filename-safe timestamp."""
+        return get_timestamp_filename()
+
+
+class ErrorHandler:
+    """Error handling utilities."""
+    
+    @staticmethod
+    def log_exceptions(func):
+        """Decorator to log exceptions."""
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger = logging.getLogger(func.__module__)
+                logger.error(f"Exception in {func.__name__}: {str(e)}", exc_info=True)
+                raise
+        return wrapper
