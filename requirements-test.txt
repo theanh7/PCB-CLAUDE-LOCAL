@@ -1,0 +1,28 @@
+# Minimal Testing Dependencies for PCB Inspection System
+# Install with: pip install -r requirements-test.txt
+
+# Core Testing Framework
+pytest>=7.4.0,<8.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-mock>=3.11.0,<4.0.0
+
+# Essential Libraries for Testing
+numpy>=1.24.0,<2.0.0
+opencv-python>=4.8.0,<5.0.0
+pillow>=10.0.0,<11.0.0
+pandas>=2.0.0,<3.0.0
+
+# Mock and Testing Utilities
+unittest-mock>=1.0.1
+responses>=0.23.0,<1.0.0  # HTTP request mocking
+
+# System Dependencies
+psutil>=5.9.0,<6.0.0
+python-dateutil>=2.8.2,<3.0.0
+
+# Progress and Logging
+tqdm>=4.65.0,<5.0.0
+coloredlogs>=15.0,<16.0
+
+# Optional: GUI Testing (headless)
+# pyvirtualdisplay>=3.0,<4.0  # Virtual display for GUI testing

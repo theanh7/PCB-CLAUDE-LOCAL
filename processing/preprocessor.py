@@ -160,6 +160,44 @@ class ImagePreprocessor(BaseProcessor):
         
         return gray
     
+    def process_raw(self, bayer_image: np.ndarray) -> np.ndarray:
+        """
+        Process raw Bayer image with full quality pipeline.
+        
+        This is an alias for the complete processing pipeline starting
+        from raw Bayer data to enhanced grayscale output.
+        
+        Args:
+            bayer_image: Raw Bayer pattern image
+            
+        Returns:
+            Fully processed grayscale image
+        """
+        # Full quality debayering
+        gray = self.debayer_full_quality(bayer_image)
+        
+        # Enhance contrast
+        enhanced = self.enhance_contrast(gray)
+        
+        # Reduce noise while preserving edges
+        denoised = self.reduce_noise(enhanced)
+        
+        return denoised
+    
+    def debayer_to_gray(self, bayer_image: np.ndarray) -> np.ndarray:
+        """
+        Simple debayer to grayscale conversion.
+        
+        Alias for fast debayering for backward compatibility.
+        
+        Args:
+            bayer_image: Raw Bayer pattern image
+            
+        Returns:
+            Grayscale image
+        """
+        return self.debayer_fast(bayer_image)
+    
     def enhance_contrast(self, image: np.ndarray) -> np.ndarray:
         """
         Enhance image contrast using CLAHE.

@@ -279,6 +279,46 @@ class PCBDatabase(BaseDatabase):
             
             return inspection_id
     
+    def save_inspection_metadata(self, timestamp, defects: List[str], 
+                               locations: List[Dict], raw_image_shape: tuple,
+                               focus_score: float, processing_time: float = None,
+                               save_image: np.ndarray = None, **kwargs) -> int:
+        """
+        Alias for save_inspection with metadata-focused parameter names.
+        
+        This method provides backward compatibility for the testing interface.
+        
+        Args:
+            timestamp: Inspection timestamp (datetime or string)
+            defects: List of detected defects
+            locations: List of defect locations with confidence
+            raw_image_shape: Shape of the raw image for metadata
+            focus_score: Focus quality score
+            processing_time: Time taken for processing
+            save_image: Optional image to save (only if defects found)
+            **kwargs: Additional metadata
+            
+        Returns:
+            Inspection ID
+        """
+        # Convert parameters to save_inspection format
+        kwargs.update({
+            'focus_score': focus_score,
+            'processing_time': processing_time,
+            'raw_image_shape': raw_image_shape
+        })
+        
+        if save_image is not None:
+            kwargs['processed_image'] = save_image
+        
+        # Convert timestamp to string if it's datetime
+        if hasattr(timestamp, 'isoformat'):
+            timestamp_str = timestamp.isoformat()
+        else:
+            timestamp_str = timestamp
+            
+        return self.save_inspection(timestamp_str, defects, locations, **kwargs)
+    
     def _save_defect_image(self, image: np.ndarray, timestamp: datetime, 
                           defects: List[str]) -> Optional[str]:
         """

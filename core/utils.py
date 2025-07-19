@@ -443,6 +443,40 @@ class TimestampUtil:
         return get_timestamp_filename()
 
 
+class TimestampGenerator:
+    """Timestamp generation utilities for consistent formatting across the system."""
+    
+    @staticmethod
+    def current() -> str:
+        """Get current timestamp in ISO format."""
+        return datetime.now(timezone.utc).isoformat()
+    
+    @staticmethod
+    def current_local() -> str:
+        """Get current local timestamp in ISO format."""
+        return datetime.now().isoformat()
+    
+    @staticmethod
+    def filename_safe() -> str:
+        """Get timestamp suitable for filenames."""
+        return datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    @staticmethod
+    def unix() -> float:
+        """Get current Unix timestamp."""
+        return time.time()
+    
+    @staticmethod
+    def from_unix(timestamp: float) -> str:
+        """Convert Unix timestamp to ISO format."""
+        return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+    
+    @staticmethod
+    def for_database() -> str:
+        """Get timestamp formatted for database storage."""
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
 class ErrorHandler:
     """Error handling utilities."""
     
@@ -458,3 +492,33 @@ class ErrorHandler:
                 logger.error(f"Exception in {func.__name__}: {str(e)}", exc_info=True)
                 raise
         return wrapper
+    
+    @staticmethod
+    def safe_execute(func: Callable, *args, default_return=None, **kwargs):
+        """Safely execute a function and return default value on error."""
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Safe execution failed for {func.__name__}: {str(e)}")
+            return default_return
+    
+    @staticmethod
+    def retry_on_failure(max_retries: int = 3, delay: float = 1.0):
+        """Decorator to retry function on failure."""
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                last_exception = None
+                for attempt in range(max_retries):
+                    try:
+                        return func(*args, **kwargs)
+                    except Exception as e:
+                        last_exception = e
+                        if attempt < max_retries - 1:
+                            time.sleep(delay)
+                            continue
+                        else:
+                            raise last_exception
+            return wrapper
+        return decorator

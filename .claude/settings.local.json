@@ -11,7 +11,8 @@
       "Bash(where python)",
       "Bash(\"C:\\Users\\thean\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe\" data/test_data.py --all)",
       "Bash(where python3)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(pip install:*)"
     ],
     "deny": []
   }

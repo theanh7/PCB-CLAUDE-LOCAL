@@ -1,36 +1,63 @@
 # PCB Quality Inspection System Dependencies
-# Core ML/AI Libraries
-ultralytics==8.0.0
-torch==2.0.0
-torchvision==0.15.0
+# Updated: Fixed version compatibility and added missing dependencies
 
-# Computer Vision
-opencv-python==4.8.0
-pillow==10.0.0
+# Core ML/AI Libraries
+ultralytics>=8.0.0,<9.0.0
+torch>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+
+# Computer Vision (Critical - Required by all image processing)
+opencv-python>=4.8.0,<5.0.0
+opencv-contrib-python>=4.8.0,<5.0.0  # Additional OpenCV functionality
+pillow>=10.0.0,<11.0.0
 
 # Data Processing
-numpy==1.24.0
-pandas==2.0.0
+numpy>=1.24.0,<2.0.0
+pandas>=2.0.0,<3.0.0
 
-# Camera Integration
-pypylon==3.0.0
+# Camera Integration (Hardware-specific)
+pypylon>=3.0.0,<4.0.0
 
-# GUI Framework
-tkinter-modernui==0.1.0
+# GUI Framework and Plotting
+matplotlib>=3.7.0,<4.0.0  # For analytics charts
+tkinter  # Built-in, but explicit dependency
 
 # System and Utilities
-psutil==5.9.0
-python-dateutil==2.8.2
+psutil>=5.9.0,<6.0.0
+python-dateutil>=2.8.2,<3.0.0
+pathlib2>=2.3.0; python_version<"3.4"  # Backport for older Python
+
+# Database
+sqlite3  # Built-in
 
 # Development and Testing
-pytest==7.4.0
-pytest-cov==4.1.0
-black==23.7.0
-flake8==6.0.0
+pytest>=7.4.0,<8.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-mock>=3.11.0,<4.0.0  # Mock framework for testing
+black>=23.7.0,<24.0.0
+flake8>=6.0.0,<7.0.0
+isort>=5.12.0,<6.0.0  # Import sorting
 
-# Optional GPU acceleration (will be installed if CUDA available)
-# torch-gpu==2.0.0  # Uncomment if using GPU version
-# torchvision-gpu==0.15.0  # Uncomment if using GPU version
+# Logging and Monitoring
+coloredlogs>=15.0,<16.0  # Better logging output
+tqdm>=4.65.0,<5.0.0  # Progress bars
 
-# Note: pypylon requires Basler Pylon SDK to be installed separately
+# Optional: Development Tools
+jupyter>=1.0.0,<2.0.0  # For development notebooks
+ipython>=8.0.0,<9.0.0  # Enhanced Python shell
+
+# Production Deployment (Optional)
+gunicorn>=21.0.0,<22.0.0  # WSGI server (if web interface added)
+supervisor>=4.2.0,<5.0.0  # Process monitoring
+
+# Hardware Testing (Optional)
+pyserial>=3.5,<4.0  # Serial communication testing
+
+# Note: Hardware-specific dependencies
+# pypylon requires Basler Pylon SDK to be installed separately
 # Download from: https://www.baslerweb.com/en/downloads/software-downloads/
+# 
+# CUDA dependencies (install manually if GPU required):
+# - CUDA Toolkit 11.8 or 12.x
+# - cuDNN compatible with CUDA version
+# - For PyTorch GPU: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118

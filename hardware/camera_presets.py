@@ -192,6 +192,22 @@ class CameraPresets:
             raise ValueError(f"Unknown speed priority: {speed_priority}")
         
         return cls.get_preset(preset_name)
+    
+    # Alias methods for backward compatibility
+    @classmethod
+    def get_preview_preset(cls) -> Dict[str, Any]:
+        """Get default preview preset (alias for preview_balanced)."""
+        return cls.get_preset("preview_balanced")
+    
+    @classmethod
+    def get_quality_preset(cls) -> Dict[str, Any]:
+        """Get quality preset (alias for preview_quality)."""
+        return cls.get_preset("preview_quality")
+    
+    @classmethod
+    def get_fast_preset(cls) -> Dict[str, Any]:
+        """Get fast preset (alias for preview_fast)."""
+        return cls.get_preset("preview_fast")
 
 
 # Convenience functions for common operations
