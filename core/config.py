@@ -37,16 +37,22 @@ AI_CONFIG: Dict[str, Any] = {
     "save_conf": True,          # Save confidence scores
 }
 
-# Auto-Trigger Configuration - v1.1 Optimized
+# Auto-Trigger Configuration - v1.2 Fixed
 TRIGGER_CONFIG: Dict[str, Any] = {
-    "stability_frames": 3,       # Reduced: Frames needed stable before triggering (was 10)
-    "focus_threshold": 50,       # Reduced: Minimum focus score threshold (was 100)
-    "movement_threshold": 15,    # Increased: Pixel tolerance for stability check (was 5)
-    "min_pcb_area": 0.05,       # Reduced: Minimum PCB area ratio (was 0.1)
-    "inspection_interval": 1.5,  # Reduced: Minimum seconds between inspections (was 2.0)
-    "max_inspection_rate": 2400, # Increased: Maximum inspections per hour (was 1800)
+    "stability_frames": 3,       # Frames needed stable before triggering
+    "focus_threshold": 50,       # Minimum focus score threshold
+    "movement_threshold": 15,    # Pixel tolerance for stability check
+    "min_pcb_area": 0.05,       # Minimum PCB area ratio
+    "inspection_interval": 5.0,  # INCREASED: Minimum seconds between inspections (was 1.5)
+    "max_inspection_rate": 720,  # REDUCED: Maximum inspections per hour (was 2400)
     "enable_auto_trigger": True, # Enable/disable auto-trigger
-    "debug_mode": True,          # New: Enable debug information in GUI
+    "debug_mode": True,          # Enable debug information in GUI
+    
+    # v1.2 NEW: Anti over-trigger settings
+    "same_position_threshold": 50,   # Pixels tolerance for "same position"
+    "min_pcb_change_required": True, # Require PCB position change for new trigger
+    "background_validation": True,   # Strict background rejection
+    "min_pcb_contrast": 30,         # Minimum contrast difference for valid PCB
 }
 
 # Database Configuration

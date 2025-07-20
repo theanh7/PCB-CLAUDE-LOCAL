@@ -84,6 +84,10 @@ class PCBInspectionSystem:
         self.error_count = 0
         self.start_time = time.time()
         
+        # v1.2 NEW: Anti over-trigger tracking
+        self.last_inspection_position = None
+        self.last_inspection_id = None
+        
         # Initialize all system components
         self._initialize_system()
     
@@ -274,7 +278,7 @@ class PCBInspectionSystem:
     
     def _should_trigger_inspection(self, has_pcb: bool, is_stable: bool, focus_score: float) -> bool:
         """
-        Determine if inspection should be triggered based on all conditions.
+        v1.2 Enhanced: Determine if inspection should be triggered with anti over-trigger logic.
         
         Args:
             has_pcb: PCB detected in frame
@@ -288,6 +292,8 @@ class PCBInspectionSystem:
             return False
             
         if not has_pcb:
+            # v1.2: Reset position tracking when no PCB
+            self.last_inspection_position = None
             return False
             
         if not is_stable:
@@ -298,6 +304,18 @@ class PCBInspectionSystem:
             
         if not self._can_inspect():
             return False
+        
+        # v1.2 NEW: Check if PCB position has changed significantly
+        if TRIGGER_CONFIG.get("min_pcb_change_required", False):
+            current_position = self.pcb_detector.smoothed_position
+            if current_position and self.last_inspection_position:
+                distance = current_position.distance_to(self.last_inspection_position)
+                same_position_threshold = TRIGGER_CONFIG.get("same_position_threshold", 50)
+                
+                if distance < same_position_threshold:
+                    # Same PCB in same position - don't trigger again
+                    self.logger.debug(f"Same PCB position (distance: {distance:.1f}), skipping trigger")
+                    return False
             
         return True
     
@@ -413,6 +431,13 @@ class PCBInspectionSystem:
                 else:
                     status += " - PASS"
                 self.gui.update_status(status)
+            
+            # v1.2 NEW: Update last inspection position to prevent over-triggering
+            if TRIGGER_CONFIG.get("min_pcb_change_required", False):
+                current_position = self.pcb_detector.smoothed_position
+                if current_position:
+                    self.last_inspection_position = current_position
+                    self.last_inspection_id = inspection_id
             
             self.logger.info(
                 f"Inspection #{inspection_id} completed in {processing_time*1000:.1f}ms"
