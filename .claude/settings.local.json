@@ -12,7 +12,10 @@
       "Bash(\"C:\\Users\\thean\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe\" data/test_data.py --all)",
       "Bash(where python3)",
       "Bash(wc:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(taskkill:*)",
+      "Bash(wmic process where name=\"python.exe\":*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

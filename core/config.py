@@ -37,15 +37,16 @@ AI_CONFIG: Dict[str, Any] = {
     "save_conf": True,          # Save confidence scores
 }
 
-# Auto-Trigger Configuration
+# Auto-Trigger Configuration - v1.1 Optimized
 TRIGGER_CONFIG: Dict[str, Any] = {
-    "stability_frames": 10,      # Frames needed stable before triggering
-    "focus_threshold": 100,      # Minimum focus score threshold
-    "movement_threshold": 5,     # Pixel tolerance for stability check
-    "min_pcb_area": 0.1,        # Minimum PCB area ratio (PCB/frame)
-    "inspection_interval": 2.0,  # Minimum seconds between inspections
-    "max_inspection_rate": 1800, # Maximum inspections per hour
+    "stability_frames": 3,       # Reduced: Frames needed stable before triggering (was 10)
+    "focus_threshold": 50,       # Reduced: Minimum focus score threshold (was 100)
+    "movement_threshold": 15,    # Increased: Pixel tolerance for stability check (was 5)
+    "min_pcb_area": 0.05,       # Reduced: Minimum PCB area ratio (was 0.1)
+    "inspection_interval": 1.5,  # Reduced: Minimum seconds between inspections (was 2.0)
+    "max_inspection_rate": 2400, # Increased: Maximum inspections per hour (was 1800)
     "enable_auto_trigger": True, # Enable/disable auto-trigger
+    "debug_mode": True,          # New: Enable debug information in GUI
 }
 
 # Database Configuration

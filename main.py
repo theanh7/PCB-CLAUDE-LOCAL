@@ -28,7 +28,8 @@ from core.utils import setup_logging, TimestampUtil, ErrorHandler
 # Layer imports
 from hardware.camera_controller import BaslerCamera
 from processing.preprocessor import ImagePreprocessor
-from processing.pcb_detector import PCBDetector
+# Use v1.1 enhanced PCB detector
+from processing.pcb_detector_v11 import PCBDetectorV11 as PCBDetector
 from processing.postprocessor import ResultPostprocessor
 from ai.inference import PCBDefectDetector
 from data.database import PCBDatabase
