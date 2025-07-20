@@ -189,6 +189,54 @@ class DefectAnalyzer(BaseAnalyzer):
             self.logger.error(f"Error in time period analysis: {str(e)}")
             return {'error': str(e)}
     
+    def get_comprehensive_report(self) -> Dict[str, Any]:
+        """
+        Get comprehensive system report with all metrics.
+        
+        Returns:
+            Comprehensive report dictionary
+        """
+        try:
+            # Get basic realtime stats
+            realtime_stats = self.get_realtime_analysis()
+            
+            # Get recent inspections for additional metrics
+            recent_inspections = self.database.get_recent_inspections(100)
+            
+            # Calculate summary metrics
+            total_inspections = len(recent_inspections)
+            total_defects = sum(len(json.loads(insp.get('defects', '[]'))) 
+                              for insp in recent_inspections if insp.get('defects'))
+            
+            pass_rate = 100.0
+            if total_inspections > 0:
+                failed_inspections = sum(1 for insp in recent_inspections 
+                                       if insp.get('has_defects', False))
+                pass_rate = ((total_inspections - failed_inspections) / total_inspections) * 100
+            
+            return {
+                'total_inspections': total_inspections,
+                'total_defects': total_defects,
+                'pass_rate': pass_rate,
+                'defect_rate': 100 - pass_rate,
+                'realtime_stats': realtime_stats,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error generating comprehensive report: {str(e)}")
+            return {
+                'total_inspections': 0,
+                'total_defects': 0,
+                'pass_rate': 100.0,
+                'defect_rate': 0.0,
+                'error': str(e)
+            }
+    
+    def get_realtime_stats(self) -> Dict[str, Any]:
+        """Alias for get_realtime_analysis for compatibility."""
+        return self.get_realtime_analysis()
+    
     def _calculate_inspection_metrics(self, inspections: List[Dict]) -> InspectionMetrics:
         """Calculate inspection metrics."""
         if not inspections:

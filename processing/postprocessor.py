@@ -91,7 +91,34 @@ class ResultPostprocessor:
         """
         boxes = []
         
-        if detection_results.boxes is None:
+        # Handle both InspectionResult and YOLO raw results
+        if hasattr(detection_results, 'defects'):
+            # InspectionResult format
+            for i, defect in enumerate(detection_results.defects):
+                location = detection_results.locations[i]
+                confidence = detection_results.confidence_scores[i]
+                
+                # Extract bbox
+                bbox = location['bbox']  # [x1, y1, x2, y2]
+                x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+                
+                # Get class info
+                class_id = location.get('class_id', 0)
+                class_name = location.get('class_name', defect)
+                
+                detection_box = DetectionBox(
+                    x1=x1, y1=y1, x2=x2, y2=y2,
+                    confidence=confidence,
+                    class_id=class_id,
+                    class_name=class_name
+                )
+                
+                boxes.append(detection_box)
+                
+            return boxes
+        
+        # YOLO raw results format
+        if not hasattr(detection_results, 'boxes') or detection_results.boxes is None:
             return boxes
         
         for box in detection_results.boxes:

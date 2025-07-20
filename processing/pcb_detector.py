@@ -119,13 +119,16 @@ class PCBDetector:
             # Check stability
             is_stable = self._check_stability(pcb_position)
             
-            # Evaluate focus if stable
+            # Always evaluate focus when PCB is detected (not just when stable)
             focus_score = 0.0
-            if is_stable:
+            try:
                 # Extract PCB region for focus evaluation
                 pcb_region = image[pcb_position.y:pcb_position.y + pcb_position.height,
                                  pcb_position.x:pcb_position.x + pcb_position.width]
                 focus_score = self.focus_evaluator.evaluate(pcb_region)
+            except Exception as e:
+                self.logger.debug(f"Focus evaluation failed: {e}")
+                focus_score = 0.0
             
             # Update position history
             self._update_position_history(pcb_position)
@@ -147,7 +150,7 @@ class PCBDetector:
     
     def _find_pcb_position(self, image: np.ndarray) -> Optional[PCBPosition]:
         """
-        Find PCB position in image using edge detection.
+        Find PCB position in image using multiple detection methods.
         
         Args:
             image: Input grayscale image
@@ -155,64 +158,194 @@ class PCBDetector:
         Returns:
             PCBPosition if found, None otherwise
         """
+        # Try multiple detection methods for robustness
+        
+        # Method 1: Edge detection (for sharp, high-contrast PCBs)
+        pcb_pos = self._detect_by_edges(image)
+        if pcb_pos is not None:
+            return pcb_pos
+        
+        # Method 2: Dark object detection (for dark PCBs on light background)
+        pcb_pos = self._detect_dark_object(image)
+        if pcb_pos is not None:
+            return pcb_pos
+        
+        # Method 3: Contrast-based detection (for low contrast images)
+        pcb_pos = self._detect_by_contrast(image)
+        if pcb_pos is not None:
+            return pcb_pos
+        
+        return None
+    
+    def _detect_by_edges(self, image: np.ndarray) -> Optional[PCBPosition]:
+        """Detect PCB using edge detection method."""
         # Image preprocessing for edge detection
         blurred = cv2.GaussianBlur(image, self.blur_kernel, 0)
         
-        # Edge detection
-        edges = cv2.Canny(blurred, self.edge_threshold1, self.edge_threshold2)
+        # Edge detection with multiple thresholds
+        for t1, t2 in [(20, 60), (30, 100), (50, 150)]:
+            edges = cv2.Canny(blurred, t1, t2)
+            
+            # Morphological operations to clean up edges
+            edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, self.morph_kernel)
+            edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, self.morph_kernel)
+            
+            # Find contours
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if contours:
+                pcb_pos = self._evaluate_contours(contours, image.shape)
+                if pcb_pos is not None:
+                    return pcb_pos
         
-        # Morphological operations to clean up edges
-        edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, self.morph_kernel)
-        edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, self.morph_kernel)
+        return None
+    
+    def _detect_dark_object(self, image: np.ndarray) -> Optional[PCBPosition]:
+        """Detect dark PCB objects (like the one in our test image)."""
         
-        # Find contours
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Enhance contrast first
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        enhanced = clahe.apply(image)
         
-        if not contours:
-            return None
+        # Invert image to make dark objects bright
+        inverted = 255 - enhanced
         
-        # Find largest rectangular contour
+        # Try multiple thresholds to find the best one
+        thresholds = [120, 130, 140, 110, 100]
+        total_area = image.shape[0] * image.shape[1]
+        
+        for threshold in thresholds:
+            # Apply threshold to isolate dark regions
+            _, binary = cv2.threshold(inverted, threshold, 255, cv2.THRESH_BINARY)
+            
+            # Light morphological cleanup (avoid connecting to borders)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            # Only use opening to remove noise, skip closing to avoid connecting
+            cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+            
+            # Find contours
+            contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if contours:
+                candidates = []
+                
+                for contour in contours:
+                    area = cv2.contourArea(contour)
+                    if area > total_area * 0.01:  # At least 1% of image
+                        x, y, w, h = cv2.boundingRect(contour)
+                        
+                        # Filter out contours that touch image borders
+                        if (x <= 5 or y <= 5 or 
+                            x + w >= image.shape[1] - 5 or 
+                            y + h >= image.shape[0] - 5):
+                            continue  # Skip border-touching contours
+                        
+                        aspect_ratio = max(w, h) / min(w, h)
+                        area_ratio = (w * h) / total_area
+                        
+                        # PCB-like criteria: reasonable size and aspect ratio
+                        if (0.05 <= area_ratio <= 0.6 and  # Between 5% and 60% of image
+                            1.2 <= aspect_ratio <= 4.0):    # Reasonable rectangle
+                            candidates.append((contour, area, x, y, w, h, threshold))
+                
+                if candidates:
+                    # Choose the best candidate (largest area that meets criteria)
+                    best = max(candidates, key=lambda x: x[1])
+                    _, _, x, y, w, h, used_threshold = best
+                    
+                    self.logger.debug(f"Dark object detected with threshold {used_threshold}: "
+                                    f"({x},{y},{w},{h}), area_ratio={(w*h)/total_area:.3f}")
+                    
+                    return PCBPosition(
+                        x=x, y=y, width=w, height=h,
+                        area=int(w * h),
+                        timestamp=time.time()
+                    )
+        
+        return None
+    
+    def _detect_by_contrast(self, image: np.ndarray) -> Optional[PCBPosition]:
+        """Detect PCB using local contrast analysis."""
+        
+        # Apply bilateral filter to smooth while preserving edges
+        filtered = cv2.bilateralFilter(image, 9, 75, 75)
+        
+        # Calculate local standard deviation to find regions with detail
+        kernel = np.ones((15, 15), np.float32) / 225
+        mean = cv2.filter2D(filtered.astype(np.float32), -1, kernel)
+        sqr_mean = cv2.filter2D((filtered.astype(np.float32))**2, -1, kernel)
+        std_dev = np.sqrt(sqr_mean - mean**2)
+        
+        # Threshold on standard deviation to find detailed regions
+        _, detail_mask = cv2.threshold(std_dev.astype(np.uint8), 10, 255, cv2.THRESH_BINARY)
+        
+        # Clean up the mask
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        detail_mask = cv2.morphologyEx(detail_mask, cv2.MORPH_CLOSE, kernel)
+        detail_mask = cv2.morphologyEx(detail_mask, cv2.MORPH_OPEN, kernel)
+        
+        # Find contours in detail regions
+        contours, _ = cv2.findContours(detail_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if contours:
+            return self._evaluate_contours(contours, image.shape)
+        
+        return None
+    
+    def _evaluate_contours(self, contours: list, image_shape: tuple) -> Optional[PCBPosition]:
+        """Evaluate contours and select the best PCB candidate."""
+        
+        total_area = image_shape[0] * image_shape[1]
         best_contour = None
-        best_area = 0
+        best_score = 0
         
         for contour in contours:
-            # Approximate contour to polygon
-            epsilon = 0.02 * cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, epsilon, True)
+            area = cv2.contourArea(contour)
+            x, y, w, h = cv2.boundingRect(contour)
             
-            # Check if contour is rectangular (4 vertices)
-            if len(approx) >= 4:
-                area = cv2.contourArea(contour)
-                if area > best_area:
-                    best_area = area
-                    best_contour = contour
+            # Calculate metrics
+            area_ratio = (w * h) / total_area
+            aspect_ratio = max(w, h) / min(w, h)
+            fill_ratio = area / (w * h)  # How well contour fills bounding box
+            
+            # Scoring based on PCB-like properties
+            score = 0
+            
+            # Area score (prefer 5-50% of image)
+            if 0.05 <= area_ratio <= 0.5:
+                score += 2.0
+            elif 0.01 <= area_ratio <= 0.8:
+                score += 1.0
+            
+            # Aspect ratio score (prefer rectangles)
+            if 1.2 <= aspect_ratio <= 3.0:
+                score += 2.0
+            elif aspect_ratio <= 5.0:
+                score += 1.0
+            
+            # Fill ratio score (prefer solid rectangles)
+            if fill_ratio >= 0.7:
+                score += 1.0
+            elif fill_ratio >= 0.5:
+                score += 0.5
+            
+            # Size score (prefer reasonable sizes)
+            if w >= 100 and h >= 100:
+                score += 1.0
+            
+            if score > best_score and score >= 2.0:  # Minimum threshold
+                best_score = score
+                best_contour = contour
         
-        if best_contour is None:
-            return None
+        if best_contour is not None:
+            x, y, w, h = cv2.boundingRect(best_contour)
+            return PCBPosition(
+                x=x, y=y, width=w, height=h,
+                area=int(w * h),
+                timestamp=time.time()
+            )
         
-        # Get bounding rectangle
-        x, y, w, h = cv2.boundingRect(best_contour)
-        
-        # Check if area is sufficient
-        total_area = image.shape[0] * image.shape[1]
-        area_ratio = (w * h) / total_area
-        
-        if area_ratio < self.min_area_ratio:
-            return None
-        
-        # Check aspect ratio (PCBs are typically rectangular)
-        aspect_ratio = max(w, h) / min(w, h)
-        if aspect_ratio > 10:  # Too elongated
-            return None
-        
-        # Create PCB position
-        pcb_position = PCBPosition(
-            x=x, y=y, width=w, height=h,
-            area=int(w * h),
-            timestamp=time.time()
-        )
-        
-        return pcb_position
+        return None
     
     def _check_stability(self, current_position: PCBPosition) -> bool:
         """
@@ -345,6 +478,31 @@ class PCBDetector:
             "position_variance": position_variance,
             "detection_rate": len(self.position_history) / max(1, time.time() - self.position_history[0].timestamp)
         }
+    
+    def debayer_to_gray(self, image: np.ndarray) -> np.ndarray:
+        """
+        Convert input image to grayscale for processing.
+        
+        For Mono cameras, this is a passthrough.
+        For Bayer cameras, this would debayer to grayscale.
+        
+        Args:
+            image: Input image (Mono8 or Bayer pattern)
+            
+        Returns:
+            Grayscale image
+        """
+        # If already grayscale (Mono8), return as is
+        if len(image.shape) == 2:
+            return image
+        
+        # If color image, convert to grayscale
+        if len(image.shape) == 3:
+            return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # For raw Bayer patterns (would need specific debayering)
+        # For now, assume Mono8 input
+        return image
     
     def reset_detection_state(self):
         """Reset detection state (useful for testing or recalibration)."""

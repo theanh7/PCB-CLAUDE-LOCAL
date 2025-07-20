@@ -14,7 +14,7 @@ CAMERA_CONFIG: Dict[str, Any] = {
     "preview_exposure": 5000,    # Exposure for preview mode (μs)
     "capture_exposure": 10000,   # Exposure for high-quality capture (μs)
     "gain": 0,                   # Camera gain setting
-    "pixel_format": "BayerRG8",  # Raw Bayer pattern for maximum quality
+    "pixel_format": "Mono8",     # Monochrome 8-bit for acA3800-10gm
     "binning": 1,                # No binning for full resolution
     "trigger_mode": "Off",       # Free running for preview mode
     "buffer_size": 10,           # Frame buffer size for streaming
@@ -25,12 +25,12 @@ CAMERA_CONFIG: Dict[str, Any] = {
 AI_CONFIG: Dict[str, Any] = {
     "model_path": "weights/best.pt",  # YOLOv11 model trained on PCB defects
     "confidence": 0.5,           # Confidence threshold for detections
-    "device": "cuda:0",          # GPU device (Tesla P4)
+    "device": "cpu",             # Use CPU (GPU temporarily unavailable)
     "imgsz": 640,               # Input image size for model
     "max_det": 50,              # Maximum detections per image
     "agnostic_nms": False,      # Class-agnostic NMS
     "augment": False,           # Test-time augmentation
-    "half": True,               # Use FP16 for faster inference
+    "half": False,              # Disable FP16 for CPU inference
     "warmup": True,             # Warmup model for consistent performance
     "save_crops": False,        # Don't save detection crops
     "save_txt": False,          # Don't save detection labels
@@ -94,7 +94,7 @@ GUI_CONFIG: Dict[str, Any] = {
 
 # Logging Configuration
 LOG_CONFIG: Dict[str, Any] = {
-    "level": "INFO",
+    "level": "DEBUG",
     "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     "file": "logs/pcb_inspection.log",
     "max_size": 10 * 1024 * 1024,  # 10MB max log file size

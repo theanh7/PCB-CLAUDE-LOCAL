@@ -94,34 +94,30 @@ class PCBInspectionSystem:
             
             self.logger.info("Initializing Hardware Layer...")
             self.camera = BaslerCamera(CAMERA_CONFIG)
-            self.logger.info("✓ Camera initialized successfully")
+            self.logger.info("Camera initialized successfully")
             
             self.logger.info("Initializing Processing Layer...")
             self.preprocessor = ImagePreprocessor()
             self.pcb_detector = PCBDetector(TRIGGER_CONFIG)
             self.postprocessor = ResultPostprocessor()
-            self.logger.info("✓ Processing layer initialized")
+            self.logger.info("Processing layer initialized")
             
             self.logger.info("Initializing AI Layer...")
-            self.ai_detector = PCBDefectDetector(
-                model_path=AI_CONFIG["model_path"],
-                device=AI_CONFIG["device"],
-                confidence=AI_CONFIG["confidence"]
-            )
-            self.logger.info("✓ AI detection model loaded")
+            self.ai_detector = PCBDefectDetector(AI_CONFIG)
+            self.logger.info("AI detection model loaded")
             
             self.logger.info("Initializing Data Layer...")
             self.database = PCBDatabase(DB_CONFIG["path"])
-            self.logger.info("✓ Database initialized")
+            self.logger.info("Database initialized")
             
             self.logger.info("Initializing Analytics Layer...")
             self.analyzer = DefectAnalyzer(self.database)
-            self.logger.info("✓ Analytics engine ready")
+            self.logger.info("Analytics engine ready")
             
             self.logger.info("Initializing Presentation Layer...")
             self.gui = PCBInspectionGUI()
             self._setup_gui_callbacks()
-            self.logger.info("✓ GUI interface created")
+            self.logger.info("GUI interface created")
             
             self.logger.info("System initialization completed successfully!")
             
@@ -201,6 +197,12 @@ class PCBInspectionSystem:
         self.logger.info("Preview loop started")
         frame_count = 0
         
+        # FPS tracking
+        fps_start_time = time.time()
+        fps_frame_count = 0
+        current_fps = 0.0
+        fps_update_interval = 1.0  # Update FPS every second
+        
         while self.is_running and not self.shutdown_event.is_set():
             try:
                 # Get latest frame from camera
@@ -210,21 +212,37 @@ class PCBInspectionSystem:
                     continue
                 
                 frame_count += 1
+                fps_frame_count += 1
+                
+                # Calculate FPS every second
+                current_time = time.time()
+                if current_time - fps_start_time >= fps_update_interval:
+                    current_fps = fps_frame_count / (current_time - fps_start_time)
+                    fps_frame_count = 0
+                    fps_start_time = current_time
                 
                 # Detect PCB and check conditions
-                has_pcb, pcb_region, is_stable, focus_score = \
-                    self.pcb_detector.detect_pcb(raw_frame)
+                detection_result = self.pcb_detector.detect_pcb(raw_frame)
+                has_pcb = detection_result.has_pcb
+                pcb_region = detection_result.position
+                is_stable = detection_result.is_stable
+                focus_score = detection_result.focus_score
                 
                 # Quick preview processing for display
                 preview_gray = self.pcb_detector.debayer_to_gray(raw_frame)
                 
                 # Update preview display
                 if self.gui:
+                    # Debug logging every 30 frames
+                    if frame_count % 30 == 0:
+                        self.logger.debug(f"Frame {frame_count}: preview_gray shape={preview_gray.shape if preview_gray is not None else 'None'}, has_pcb={has_pcb}, focus={focus_score:.1f}")
+                    
                     self.gui.update_preview(
                         image=preview_gray,
                         has_pcb=has_pcb,
                         is_stable=is_stable,
-                        focus_score=focus_score
+                        focus_score=focus_score,
+                        fps=current_fps
                     )
                 
                 # Auto-trigger logic
@@ -380,7 +398,8 @@ class PCBInspectionSystem:
                     image=display_image,
                     defects=defects,
                     locations=locations,
-                    confidences=confidences,
+                    confidence_scores=confidences,
+                    inspection_id=inspection_id,
                     processing_time=processing_time
                 )
                 
@@ -405,26 +424,45 @@ class PCBInspectionSystem:
     
     def _extract_results(self, detection_results) -> tuple[List[str], List[Dict], List[float]]:
         """Extract defects, locations, and confidences from AI results."""
-        defects = []
-        locations = []
-        confidences = []
         
-        if detection_results.boxes is not None:
-            for box in detection_results.boxes:
-                # Map class ID to defect name
-                class_id = int(box.cls)
-                if class_id in MODEL_CLASS_MAPPING:
-                    defect_name = MODEL_CLASS_MAPPING[class_id]
-                    confidence = float(box.conf)
-                    bbox = box.xyxy[0].tolist()
-                    
-                    defects.append(defect_name)
-                    confidences.append(confidence)
-                    locations.append({
-                        'bbox': bbox,
-                        'confidence': confidence,
-                        'class_id': class_id
-                    })
+        # Check if detection_results is InspectionResult or YOLO raw results
+        if hasattr(detection_results, 'defects'):
+            # InspectionResult object
+            defects = detection_results.defects
+            locations = detection_results.locations  
+            confidences = detection_results.confidence_scores
+            
+            self.logger.debug(f"Extracted from InspectionResult: {len(defects)} defects")
+            
+        elif hasattr(detection_results, 'boxes'):
+            # YOLO raw results
+            defects = []
+            locations = []
+            confidences = []
+            
+            if detection_results.boxes is not None:
+                for box in detection_results.boxes:
+                    # Map class ID to defect name
+                    class_id = int(box.cls)
+                    if class_id in MODEL_CLASS_MAPPING:
+                        defect_name = MODEL_CLASS_MAPPING[class_id]
+                        confidence = float(box.conf)
+                        bbox = box.xyxy[0].tolist()
+                        
+                        defects.append(defect_name)
+                        confidences.append(confidence)
+                        locations.append({
+                            'bbox': bbox,
+                            'confidence': confidence,
+                            'class_id': class_id
+                        })
+            
+            self.logger.debug(f"Extracted from YOLO results: {len(defects)} defects")
+            
+        else:
+            # Unknown format
+            self.logger.warning(f"Unknown detection result format: {type(detection_results)}")
+            defects, locations, confidences = [], [], []
         
         return defects, locations, confidences
     

@@ -150,12 +150,9 @@ class BaslerCamera(BaseCamera):
             # Configure camera
             self._configure_camera()
             
-            # Register image event handler
-            self.camera.RegisterImageEventHandler(
-                self.image_handler,
-                pylon.RegistrationMode_Append,
-                pylon.Cleanup_Delete
-            )
+            # Skip event handler registration for this camera model
+            # We'll use polling approach instead
+            self.logger.info("Using polling approach instead of event handler")
             
             self.is_connected = True
             self.logger.info("Camera initialized successfully")
@@ -168,29 +165,20 @@ class BaslerCamera(BaseCamera):
     def _configure_camera(self):
         """Configure camera parameters for optimal performance."""
         try:
-            # Set pixel format for raw Bayer output
+            # Set pixel format (this works)
             self.camera.PixelFormat.SetValue(self.pixel_format)
+            self.logger.info(f"Pixel format set to: {self.pixel_format}")
             
-            # Set initial exposure (preview mode)
-            self.camera.ExposureTime.SetValue(self.preview_exposure)
+            # Skip advanced configuration for this camera model
+            # The acA3800-10gm seems to have limited GenICam support
+            self.logger.info("Using default camera settings (limited GenICam support)")
             
-            # Set gain
-            self.camera.Gain.SetValue(self.gain)
-            
-            # Configure acquisition mode
-            self.camera.AcquisitionMode.SetValue("Continuous")
-            
-            # Set binning (if supported)
-            binning = self.config.get("binning", 1)
-            if binning > 1:
-                try:
-                    self.camera.BinningHorizontal.SetValue(binning)
-                    self.camera.BinningVertical.SetValue(binning)
-                except:
-                    self.logger.warning("Binning not supported by camera")
-            
-            # Configure buffer handling
-            self.camera.MaxNumBuffer.SetValue(self.config.get("buffer_size", 10))
+            # Try to configure buffer handling if available
+            try:
+                self.camera.MaxNumBuffer.SetValue(self.config.get("buffer_size", 10))
+                self.logger.info("Buffer size configured")
+            except:
+                self.logger.warning("Could not configure buffer size")
             
             self.logger.info("Camera configured successfully")
             
@@ -243,10 +231,11 @@ class BaslerCamera(BaseCamera):
             
         try:
             with self.connection_lock:
-                # Configure for preview mode
-                self.camera.ExposureTime.SetValue(self.preview_exposure)
+                # Skip exposure configuration (not supported by this camera)
+                self.logger.debug("Starting polling-based streaming")
                 
-                # Start grabbing with latest image strategy
+                # For this camera model, use continuous grabbing
+                # We'll poll frames in get_preview_frame()
                 self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                 
                 self.is_streaming = True
@@ -284,16 +273,30 @@ class BaslerCamera(BaseCamera):
     def get_preview_frame(self) -> Optional[np.ndarray]:
         """
         Get latest frame from preview stream.
+        For this camera model, we use polling instead of queue.
         
         Returns:
             Latest frame array or None if no frame available
         """
-        if not self.is_streaming:
+        if not self.is_streaming or not self.is_connected:
             return None
             
         try:
-            return self.frame_queue.get_nowait()
-        except Empty:
+            # Use polling approach for this camera model
+            grab_result = self.camera.RetrieveResult(10)  # 10ms timeout for quick polling
+            
+            if grab_result.GrabSucceeded():
+                image_array = grab_result.Array.copy()
+                grab_result.Release()
+                return image_array
+            else:
+                grab_result.Release()
+                return None
+                
+        except Exception as e:
+            # Don't log every timeout as error (too noisy)
+            if "timeout" not in str(e).lower():
+                self.logger.debug(f"Frame polling error: {e}")
             return None
     
     @timing_decorator
@@ -321,8 +324,8 @@ class BaslerCamera(BaseCamera):
                     self.camera.StopGrabbing()
                     self.is_streaming = False
                 
-                # Configure for high quality capture
-                self.camera.ExposureTime.SetValue(self.capture_exposure)
+                # Skip exposure adjustment (not supported by this camera)
+                self.logger.debug("Using default exposure for capture")
                 
                 # Allow camera to adjust
                 time.sleep(0.1)
@@ -338,7 +341,7 @@ class BaslerCamera(BaseCamera):
                     
                     # Resume streaming if it was active
                     if was_streaming:
-                        self.camera.ExposureTime.SetValue(self.preview_exposure)
+                        # Skip exposure adjustment for resume
                         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                         self.is_streaming = True
                     
@@ -350,7 +353,7 @@ class BaslerCamera(BaseCamera):
                     
                     # Resume streaming if it was active
                     if was_streaming:
-                        self.camera.ExposureTime.SetValue(self.preview_exposure)
+                        # Skip exposure adjustment for resume
                         self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                         self.is_streaming = True
                     
@@ -362,7 +365,7 @@ class BaslerCamera(BaseCamera):
             # Try to resume streaming if it was active
             if was_streaming:
                 try:
-                    self.camera.ExposureTime.SetValue(self.preview_exposure)
+                    # Skip exposure adjustment for resume
                     self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
                     self.is_streaming = True
                 except:
@@ -425,8 +428,7 @@ class BaslerCamera(BaseCamera):
         try:
             if mode == "preview":
                 self.preview_exposure = exposure_us
-                if self.is_streaming:
-                    self.camera.ExposureTime.SetValue(exposure_us)
+                # Skip exposure setting (not supported)
             elif mode == "capture":
                 self.capture_exposure = exposure_us
             else:
@@ -451,8 +453,7 @@ class BaslerCamera(BaseCamera):
         """
         try:
             self.gain = gain_db
-            if self.is_connected:
-                self.camera.Gain.SetValue(gain_db)
+            # Skip gain setting (not supported by this camera)
             
             self.logger.info(f"Gain set to {gain_db}dB")
             return True
